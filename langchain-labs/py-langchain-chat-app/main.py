@@ -1,5 +1,6 @@
 from langchain_openai.chat_models import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
+from prompts import template
 
 model = ChatOpenAI(model="gpt-3.5-turbo")
 system_msg = SystemMessage(
@@ -9,12 +10,25 @@ system_msg = SystemMessage(
 def ask(question: str):
     prompt = [system_msg, HumanMessage(question)]
     answer = model.invoke(prompt)
-    print(answer.content)
+    return answer.content
+
+def ask_with_prompt_templates(question: str):
+    prompt = template.invoke({
+        "context": """The most recent advancements in NLP are being driven by Large Language Models (LLMs). 
+            The models outperform their smaller counterparts and have become invaluable for developer who are creating applications with NLP capabilities. 
+            Developers can tap into these models through Hugging Face's `transformers` library, or by utilizing OpenAI and Cohere's offerings through the `openai` and `cohere` libraries, respectively.""",
+        "question": question,
+    })
+    print(prompt)
+    answer = model.invoke(prompt)
+    return answer.content
+
 
 def main():
     print("Ask your question: ")
     question = input()
-    ask(question)
+    answer = ask_with_prompt_templates(question)
+    print(answer)
 
 if __name__ == '__main__':
     main()
