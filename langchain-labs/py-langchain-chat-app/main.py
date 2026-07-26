@@ -1,11 +1,13 @@
 from langchain_openai.chat_models import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from prompts import template
+from output_formats import AnswerWithJustification
 
-model = ChatOpenAI(model="gpt-3.5-turbo")
+model = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
 system_msg = SystemMessage(
     """Your are a helpful assistant that responds to questions with three exclamation marks."""
 )
+structured_model = model.with_structured_output(AnswerWithJustification)
 
 def ask(question: str):
     prompt = [system_msg, HumanMessage(question)]
@@ -23,11 +25,15 @@ def ask_with_prompt_templates(question: str):
     answer = model.invoke(prompt)
     return answer.content
 
+def ask_with_output_format(question: str):
+    answer = structured_model.invoke(question)
+    return answer
+
 
 def main():
     print("Ask your question: ")
     question = input()
-    answer = ask_with_prompt_templates(question)
+    answer = ask_with_output_format(question)
     print(answer)
 
 if __name__ == '__main__':

@@ -9,3 +9,5 @@ install:
 
 run:
 	python main.py
+run2:
+	python composition.py
