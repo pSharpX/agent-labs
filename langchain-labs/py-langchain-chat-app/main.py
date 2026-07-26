@@ -1,10 +1,13 @@
 from langchain_openai.chat_models import ChatOpenAI
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 
 model = ChatOpenAI(model="gpt-3.5-turbo")
+system_msg = SystemMessage(
+    """Your are a helpful assistant that responds to questions with three exclamation marks."""
+)
 
 def ask(question: str):
-    prompt = [HumanMessage(question)]
+    prompt = [system_msg, HumanMessage(question)]
     answer = model.invoke(prompt)
     print(answer.content)
 
