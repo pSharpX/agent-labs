@@ -10,4 +10,6 @@ install:
 run:
 	python main.py
 run2:
-	python composition.py
+	python imperative.py
+run3:
+	python declarative.py
