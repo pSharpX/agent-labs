@@ -9,10 +9,6 @@ system_msg = SystemMessage(
 )
 structured_model = model.with_structured_output(AnswerWithJustification)
 
-def ask(question: str):
-    prompt = [system_msg, HumanMessage(question)]
-    answer = model.invoke(prompt)
-    return answer.content
 
 def ask_with_prompt_templates(question: str):
     prompt = template.invoke({

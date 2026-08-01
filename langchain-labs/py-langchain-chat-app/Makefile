@@ -13,3 +13,5 @@ run2:
 	python imperative.py
 run3:
 	python declarative.py
+run4:
+	python chat.py
