@@ -6,7 +6,8 @@ class ModelProvider(str, Enum):
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
     OLLAMA = "ollama"
-    GEMINI = "gemini"
+    GEMINI = "google_genai"
+    GOOGLE_VERTEX = "google_vertex"
 
 
 class BaseModelSettings(BaseSettings, case_sensitive=False):

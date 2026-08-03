@@ -15,3 +15,5 @@ run3:
 	python declarative.py
 run4:
 	python chat.py
+run5:
+	python generic_chat.py

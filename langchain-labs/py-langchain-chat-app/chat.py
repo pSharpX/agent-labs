@@ -1,4 +1,4 @@
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import SystemMessage
 from prompts import template
 from settings import BaseModelSettings, ModelProvider
 from openai_model import OpenAIModel

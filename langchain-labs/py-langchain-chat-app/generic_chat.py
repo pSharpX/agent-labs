@@ -1,14 +1,9 @@
-from langchain_openai.chat_models import ChatOpenAI
-from langchain_core.messages import SystemMessage
+from langchain.chat_models import init_chat_model
+from settings import BaseModelSettings
 from prompts import template
-from output_formats import AnswerWithJustification
 
-model = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
-system_msg = SystemMessage(
-    """Your are a helpful assistant that responds to questions with three exclamation marks."""
-)
-structured_model = model.with_structured_output(AnswerWithJustification)
-
+settings = BaseModelSettings()
+model = init_chat_model(model=settings.model_name, model_provider=settings.provider, temperature=settings.temperature)
 
 def ask_with_prompt_templates(question: str):
     prompt = template.invoke({
@@ -17,19 +12,13 @@ def ask_with_prompt_templates(question: str):
             Developers can tap into these models through Hugging Face's `transformers` library, or by utilizing OpenAI and Cohere's offerings through the `openai` and `cohere` libraries, respectively.""",
         "question": question,
     })
-    print(prompt)
-    answer = model.invoke(prompt)
-    return answer.content
-
-def ask_with_output_format(question: str):
-    answer = structured_model.invoke(question)
-    return answer
-
+    message = model.invoke(prompt)
+    return message.content
 
 def main():
     print("Ask your question: ")
     question = input()
-    answer = ask_with_output_format(question)
+    answer = ask_with_prompt_templates(question)
     print(answer)
 
 if __name__ == '__main__':
