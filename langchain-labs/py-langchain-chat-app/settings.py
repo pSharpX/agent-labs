@@ -17,6 +17,7 @@ class BaseModelSettings(BaseSettings, case_sensitive=False):
     model_name: str = Field("gpt-3.5-turbo", alias="model_name", max_length=200, min_length=5)
     temperature: float = Field(0.2)
     max_tokens: int = Field(100)
+    verbose: bool = Field(False)
 
     @field_validator('provider', mode='after')
     @classmethod
@@ -25,3 +26,10 @@ class BaseModelSettings(BaseSettings, case_sensitive=False):
         if not is_valid:
             raise ValueError('Invalid model provider value')
         return value
+
+
+class BaseToolSettings(BaseSettings, case_sensitive=False):
+    model_config = SettingsConfigDict(env_prefix="tool_", env_file=".env", env_file_encoding="utf-8", extra="allow")
+
+    weather_apikey: str = Field(max_length=200, min_length=5)
+    weather_url: str = Field(max_length=1000, min_length=5)

@@ -17,3 +17,6 @@ run4:
 	python chat.py
 run5:
 	python generic_chat.py
+
+run6:
+	python tools.py
