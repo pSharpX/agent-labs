@@ -1,11 +1,12 @@
 import requests
 from langchain.tools import tool
-from settings import BaseToolSettings, BaseModelSettings
-from langchain_openai.chat_models import ChatOpenAI
+from langchain_community.utilities import ArxivAPIWrapper, SerpAPIWrapper
 from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage, AIMessage
+from langchain_openai.chat_models import ChatOpenAI
+from settings import BaseToolSettings, BaseModelSettings
 
-settings = BaseToolSettings()
-base_settings = BaseModelSettings()
+tools_settings = BaseToolSettings()
+model_settings = BaseModelSettings()
 
 class WeatherClient:
     def __init__(self, config: BaseToolSettings):
@@ -18,7 +19,9 @@ class WeatherClient:
             return response.json()
         return None
 
-weather_client = WeatherClient(settings)
+weather_client = WeatherClient(tools_settings)
+serpapi = SerpAPIWrapper()
+arxiv = ArxivAPIWrapper()
 
 @tool
 def get_weather(city: str) -> str:
@@ -42,30 +45,143 @@ def get_weather(city: str) -> str:
         f"- Wind Speed: {wind} k/h"
     )
 
-tools_dict: dict = {
-    "get_weather": get_weather
+@tool
+def add(a: int | float, b: int | float) -> int | float:
+    """Adds a and b
+
+    Args:
+        a: The first number
+        b: The second number
+    """
+    return a + b
+
+@tool
+def sub(a: int | float, b: int | float) -> int | float:
+    """Subtracts a and b
+    Args:
+        a: The first number
+        b: The second number
+    """
+    return a - b
+
+@tool
+def mul(a: int | float, b: int | float) -> int | float:
+    """Multiplies a and b
+
+    Args:
+        a: The first number
+        b: The second number
+    """
+    return a * b
+
+@tool
+def div(a: int | float, b: int | float) -> int | float:
+    """Divides a and b
+
+    Args:
+        a: The first number
+        b: The second number
+    """
+    return a / b
+
+@tool
+def search_web(query: str) -> str:
+    """Search the web for current information.
+
+    Args:
+        query: term to search for
+    """
+    return serpapi.run(query)
+
+@tool
+def get_papers(query: str) -> str:
+    """Search on ArXiv for deep research and investigation.
+
+    Args:
+        query: term to search for
+    """
+    return arxiv.run(query)
+
+tools_registry: dict = {
+    "get_weather": get_weather,
+    "add": add,
+    "sub": sub,
+    "mul": mul,
+    "div": div,
+    "search_web": search_web,
+    "get_papers": get_papers,
 }
 
-model = ChatOpenAI(model="gpt-3.5-turbo", temperature=0, verbose=True).bind_tools([get_weather])
-system_msg = SystemMessage(
-    """Your are a helpful assistant"""
-)
+model = (ChatOpenAI(model=model_settings.model_name, temperature=model_settings.temperature, verbose=True)
+         .bind_tools([get_weather, add, sub, mul, div, search_web, get_papers]))
+# LangChain chat models can expose a dictionary of supported features and capabilities through a profile attribute:
+# print(model.profile)
+
+# Helpful assistant Prompt
+# system_msg = SystemMessage("""Your are a helpful assistant""")
+
+# Calculator User expect Prompt
+system_msg = SystemMessage("""
+# Goal:
+- You are bad at math but are an expert at using a calculator
+
+# Tools
+- **add**: Perform addition operation
+- **sub**: Perform subtraction operation
+- **mul**: Perform multiplication operation
+- **div**: Perform division operation
+
+# Instructions
+- You must use the tools to perform math operations
+- Then you must break down the task into multiple steps and explain intermediate result.
+- This is the structure of the result: (1) Steps, (2) Final Result.
+
+# Input
+- User query
+
+# Output
+- Steps and result in Markdown format
+""")
+
+# Researcher Expert Prompt
+# system_msg = SystemMessage("""
+# # Goal:
+# - Perform a deep research
+#
+# # Tools
+# - **search_web**: Got web pages on the Web
+# - **get_papers**: Got papers from ArXiv
+#
+# # Instructions
+# - You must follow the user topic in the Web and ArXiv
+# - Then you must produce short review including citations in IEEE format.
+# - This is the structure of the review: (1) Summary, (2) Background and concepts, (3) Trends and challenges, (4) Conclusions, (5) References.
+#
+# # Input
+# - User query
+#
+# # Output
+# - Review and conclusions in markdown
+# """)
 
 def ask(question: str):
     human_msg = HumanMessage(question)
     messages: list[AIMessage | SystemMessage | HumanMessage | ToolMessage] = [system_msg, human_msg]
 
-    answer_msg = model.invoke(messages)
-    messages.append(answer_msg)
+    while True:
+        answer_msg = model.invoke(messages)
+        messages.append(answer_msg)
 
-    for tool_call in answer_msg.tool_calls:
-        selected_tool = tools_dict[tool_call["name"].lower()]
-        tool_output = selected_tool.invoke(tool_call["args"])
-        messages.append(ToolMessage(tool_output, tool_call_id=tool_call["id"]))
+        if not answer_msg.tool_calls:
+            break
 
-    final_msg = model.invoke(messages)
-    print(messages + [final_msg])
-    return final_msg.content
+        for tool_call in answer_msg.tool_calls:
+            selected_tool = tools_registry[tool_call["name"].lower()]
+            tool_output = selected_tool.invoke(tool_call["args"])
+            messages.append(ToolMessage(tool_output, tool_call_id=tool_call["id"]))
+
+    print(messages)
+    return answer_msg.content
 
 def main():
     print("Ask your question: ")
