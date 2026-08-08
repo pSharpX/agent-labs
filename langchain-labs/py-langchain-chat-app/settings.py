@@ -33,3 +33,11 @@ class BaseToolSettings(BaseSettings, case_sensitive=False):
 
     weather_apikey: str = Field(max_length=200, min_length=5)
     weather_url: str = Field(max_length=1000, min_length=5)
+
+class DatabaseSettings(BaseSettings, case_sensitive=False):
+    model_config = SettingsConfigDict(env_prefix="db_", env_file=".env", env_file_encoding="utf-8", extra="allow")
+
+    url: str = Field(max_length=200, min_length=5)
+    username: str = Field(max_length=20, min_length=2, alias="db_user")
+    password: str = Field(max_length=20, min_length=2, alias="db_pass")
+    database_name: str = Field(max_length=50, min_length=2, alias="db_name")
