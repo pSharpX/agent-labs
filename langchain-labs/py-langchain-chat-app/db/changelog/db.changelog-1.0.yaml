@@ -1,0 +1,42 @@
+databaseChangeLog:
+  - property:
+      name: json.type
+      value: json
+      dbms: mysql, postgresql
+  - property:
+      name: json.type
+      value: clob
+      dbms: oracle, h2, mssql
+  - changeSet:
+      id: enable-pgvector
+      author: christian.rivera
+      changes:
+        - sql:
+            sql: CREATE EXTENSION IF NOT EXISTS vector;
+  - changeSet:
+      id: create-document-table
+      author: christian.rivera
+      comment: add document table definition
+      changes:
+        - createTable:
+            tableName: documents
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: content
+                  type: text
+                  constraints:
+                    nullable: false
+              - column:
+                  name: embedding
+                  type: vector(1536)
+                  constraints:
+                    nullable: true
+
+

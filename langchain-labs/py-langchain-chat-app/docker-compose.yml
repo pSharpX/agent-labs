@@ -1,0 +1,41 @@
+version: "3.9"
+
+services:
+  pgvector:
+    image: pgvector/pgvector:pg16
+    container_name: pgvector
+    restart: always
+    environment:
+      POSTGRES_USER: pgvector_user
+      POSTGRES_PASSWORD: p4ssw0rd
+      POSTGRES_DB: vectordb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgvector_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U pgvector_user -d vectordb" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  liquibase:
+    build:
+      context: ./liquibase
+    depends_on:
+      pgvector:
+        condition: service_healthy
+    volumes:
+      - ${PWD}/db/changelog/:/liquibase/changelog
+    command: >
+      --changeLogFile=./db.changelog-1.0.yaml
+      --url=jdbc:postgresql://pgvector:5432/vectordb
+      --driver=org.postgresql.Driver
+      --classpath=/liquibase/changelog
+      --username=pgvector_user
+      --password=p4ssw0rd
+      update
+
+volumes:
+  pgvector_data:
