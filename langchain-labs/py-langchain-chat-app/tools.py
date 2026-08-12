@@ -5,9 +5,6 @@ from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage, AI
 from langchain_openai.chat_models import ChatOpenAI
 from settings import BaseToolSettings, BaseModelSettings
 
-tools_settings = BaseToolSettings()
-model_settings = BaseModelSettings()
-
 class WeatherClient:
     def __init__(self, config: BaseToolSettings):
         self.api_key = config.weather_apikey
@@ -18,6 +15,10 @@ class WeatherClient:
         if response.status_code == 200:
             return response.json()
         return None
+
+
+tools_settings = BaseToolSettings()
+model_settings = BaseModelSettings()
 
 weather_client = WeatherClient(tools_settings)
 serpapi = SerpAPIWrapper()
@@ -112,82 +113,89 @@ tools_registry: dict = {
     "get_papers": get_papers,
 }
 
-model = (ChatOpenAI(model=model_settings.model_name, temperature=model_settings.temperature, verbose=True)
+class ToolsPoweredChatOpenAI:
+    def __init__(self, settings: BaseModelSettings):
+        self.model_settings = settings
+        self.model = (ChatOpenAI(model=self.model_settings.model_name, temperature=self.model_settings.temperature, verbose=True)
          .bind_tools([get_weather, add, sub, mul, div, search_web, get_papers]))
-# LangChain chat models can expose a dictionary of supported features and capabilities through a profile attribute:
-# print(model.profile)
 
-# Helpful assistant Prompt
-# system_msg = SystemMessage("""Your are a helpful assistant""")
+        # LangChain chat models can expose a dictionary of supported features and capabilities through a profile attribute:
+        # print(self.model.profile)
 
-# Calculator User expect Prompt
-system_msg = SystemMessage("""
-# Goal:
-- You are bad at math but are an expert at using a calculator
+        # Helpful assistant Prompt
+        # self.system_msg = SystemMessage("""Your are a helpful assistant""")
 
-# Tools
-- **add**: Perform addition operation
-- **sub**: Perform subtraction operation
-- **mul**: Perform multiplication operation
-- **div**: Perform division operation
+        # Calculator User expect Prompt
+        self.system_msg = SystemMessage("""
+        # Goal:
+        - You are bad at math but are an expert at using a calculator
+        
+        # Tools
+        - **add**: Perform addition operation
+        - **sub**: Perform subtraction operation
+        - **mul**: Perform multiplication operation
+        - **div**: Perform division operation
+        
+        # Instructions
+        - You must use the tools to perform math operations
+        - Then you must break down the task into multiple steps and explain intermediate result.
+        - This is the structure of the result: (1) Steps, (2) Final Result.
+        
+        # Input
+        - User query
+        
+        # Output
+        - Steps and result in Markdown format
+        """)
 
-# Instructions
-- You must use the tools to perform math operations
-- Then you must break down the task into multiple steps and explain intermediate result.
-- This is the structure of the result: (1) Steps, (2) Final Result.
+        # Researcher Expert Prompt
+        # self.system_msg = SystemMessage("""
+        # # Goal:
+        # - Perform a deep research
+        #
+        # # Tools
+        # - **search_web**: Got web pages on the Web
+        # - **get_papers**: Got papers from ArXiv
+        #
+        # # Instructions
+        # - You must follow the user topic in the Web and ArXiv
+        # - Then you must produce short review including citations in IEEE format.
+        # - This is the structure of the review: (1) Summary, (2) Background and concepts, (3) Trends and challenges, (4) Conclusions, (5) References.
+        #
+        # # Input
+        # - User query
+        #
+        # # Output
+        # - Review and conclusions in markdown
+        # """)
 
-# Input
-- User query
+    def __ask(self, question: str):
+        human_msg = HumanMessage(question)
+        messages: list[AIMessage | SystemMessage | HumanMessage | ToolMessage] = [self.system_msg, human_msg]
 
-# Output
-- Steps and result in Markdown format
-""")
+        while True:
+            answer_msg = self.model.invoke(messages)
+            messages.append(answer_msg)
 
-# Researcher Expert Prompt
-# system_msg = SystemMessage("""
-# # Goal:
-# - Perform a deep research
-#
-# # Tools
-# - **search_web**: Got web pages on the Web
-# - **get_papers**: Got papers from ArXiv
-#
-# # Instructions
-# - You must follow the user topic in the Web and ArXiv
-# - Then you must produce short review including citations in IEEE format.
-# - This is the structure of the review: (1) Summary, (2) Background and concepts, (3) Trends and challenges, (4) Conclusions, (5) References.
-#
-# # Input
-# - User query
-#
-# # Output
-# - Review and conclusions in markdown
-# """)
+            if not answer_msg.tool_calls:
+                break
 
-def ask(question: str):
-    human_msg = HumanMessage(question)
-    messages: list[AIMessage | SystemMessage | HumanMessage | ToolMessage] = [system_msg, human_msg]
+            for tool_call in answer_msg.tool_calls:
+                selected_tool = tools_registry[tool_call["name"].lower()]
+                tool_output = selected_tool.invoke(tool_call["args"])
+                messages.append(ToolMessage(tool_output, tool_call_id=tool_call["id"]))
 
-    while True:
-        answer_msg = model.invoke(messages)
-        messages.append(answer_msg)
+        print(messages)
+        return answer_msg.content
 
-        if not answer_msg.tool_calls:
-            break
+    def initialize(self):
+        print("Ask your question: ")
+        question = input()
+        answer = self.__ask(question)
+        print(answer)
 
-        for tool_call in answer_msg.tool_calls:
-            selected_tool = tools_registry[tool_call["name"].lower()]
-            tool_output = selected_tool.invoke(tool_call["args"])
-            messages.append(ToolMessage(tool_output, tool_call_id=tool_call["id"]))
 
-    print(messages)
-    return answer_msg.content
-
-def main():
-    print("Ask your question: ")
-    question = input()
-    answer = ask(question)
-    print(answer)
+main_chat = ToolsPoweredChatOpenAI(model_settings)
 
 if __name__ == '__main__':
-    main()
+    main_chat.initialize()

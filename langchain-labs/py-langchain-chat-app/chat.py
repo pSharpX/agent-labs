@@ -1,4 +1,3 @@
-from langchain_core.messages import SystemMessage
 from prompts import template
 from settings import BaseModelSettings, ModelProvider
 from openai_model import OpenAIModel
@@ -23,30 +22,31 @@ class ProviderResolver:
         return OpenAIModel(model=config.model_name, temperature=config.temperature,
                            max_tokens=config.max_tokens)
 
-settings = BaseModelSettings()
-resolver = ProviderResolver(ModelProvider(settings.provider))
-model = resolver.resolve(settings)
+class CustomGenericChat:
+    def __init__(self):
+        self.settings = BaseModelSettings()
+        self.resolver = ProviderResolver(ModelProvider(self.settings.provider))
+        self.model = self.resolver.resolve(self.settings)
 
-system_msg = SystemMessage(
-    """Your are a helpful assistant that responds to questions with three exclamation marks."""
-)
+    def __ask_with_prompt_templates(self, question: str):
+        prompt = template.invoke({
+            "context": """The most recent advancements in NLP are being driven by Large Language Models (LLMs). 
+                The models outperform their smaller counterparts and have become invaluable for developer who are creating applications with NLP capabilities. 
+                Developers can tap into these models through Hugging Face's `transformers` library, or by utilizing OpenAI and Cohere's offerings through the `openai` and `cohere` libraries, respectively.""",
+            "question": question,
+        })
+        content = self.model.invoke(prompt)
+        return content
 
-def ask_with_prompt_templates(question: str):
-    prompt = template.invoke({
-        "context": """The most recent advancements in NLP are being driven by Large Language Models (LLMs). 
-            The models outperform their smaller counterparts and have become invaluable for developer who are creating applications with NLP capabilities. 
-            Developers can tap into these models through Hugging Face's `transformers` library, or by utilizing OpenAI and Cohere's offerings through the `openai` and `cohere` libraries, respectively.""",
-        "question": question,
-    })
-    content = model.invoke(prompt)
-    return content
+    def initialize(self):
+        print("Ask your question: ")
+        question = input()
+        answer = self.__ask_with_prompt_templates(question)
+        print(answer)
 
-def main():
-    print("Ask your question: ")
-    question = input()
-    answer = ask_with_prompt_templates(question)
-    print(answer)
+
+main_chat = CustomGenericChat()
 
 if __name__ == '__main__':
-    main()
+    main_chat.initialize()
 
