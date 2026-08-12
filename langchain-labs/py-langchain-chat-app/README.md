@@ -1,0 +1,1 @@
+![rag_pdf.png](rag_pdf.png)
