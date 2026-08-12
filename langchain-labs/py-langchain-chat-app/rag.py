@@ -114,12 +114,6 @@ class IndexingStageRAG:
 #results = vector_store.similarity_search(query="what is llm?", k=4)
 #print(results)
 
-# "https://docs.langchain.com/oss/python/langchain/agents"
-# ./docs/NaturalLanguageProcessing.pdf
-# ./docs/langchain.md"
-# "./docs/what_is_llm.txt"
-
-
 class RetrievalStageRAG:
     def __init__(self, settings: DatabaseSettings):
         # Embeddings

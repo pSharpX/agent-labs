@@ -113,6 +113,8 @@ tools_registry: dict = {
     "get_papers": get_papers,
 }
 
+MAX_ITERATIONS = 20
+
 class ToolsPoweredChatOpenAI:
     def __init__(self, settings: BaseModelSettings):
         self.model_settings = settings
@@ -169,21 +171,34 @@ class ToolsPoweredChatOpenAI:
         # - Review and conclusions in markdown
         # """)
 
+    @staticmethod
+    def __execute_tools(tool_calls) -> list:
+        output = []
+        for tool_call in tool_calls:
+            selected_tool = tools_registry[tool_call["name"].lower()]
+            tool_output = selected_tool.invoke(tool_call["args"])
+            output.append(
+                ToolMessage(
+                    content=tool_output,
+                    tool_call_id=tool_call["id"]
+                )
+            )
+        return output
+
     def __ask(self, question: str):
         human_msg = HumanMessage(question)
         messages: list[AIMessage | SystemMessage | HumanMessage | ToolMessage] = [self.system_msg, human_msg]
 
-        while True:
+        for _ in range(MAX_ITERATIONS):
             answer_msg = self.model.invoke(messages)
             messages.append(answer_msg)
 
             if not answer_msg.tool_calls:
                 break
 
-            for tool_call in answer_msg.tool_calls:
-                selected_tool = tools_registry[tool_call["name"].lower()]
-                tool_output = selected_tool.invoke(tool_call["args"])
-                messages.append(ToolMessage(tool_output, tool_call_id=tool_call["id"]))
+            messages.extend(ToolsPoweredChatOpenAI.__execute_tools(answer_msg.tool_calls))
+        else:
+            raise RuntimeError("Chat exceeded maximum tool interactions")
 
         print(messages)
         return answer_msg.content
