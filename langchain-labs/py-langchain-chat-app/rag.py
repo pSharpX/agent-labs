@@ -2,7 +2,7 @@ import uuid
 from pathlib import Path
 from urllib.parse import urlparse
 
-from langchain_community.document_loaders import TextLoader, WebBaseLoader, PyPDFLoader
+from langchain_community.document_loaders import TextLoader, WebBaseLoader, PyPDFLoader, PDFPlumberLoader, UnstructuredPDFLoader, AmazonTextractPDFLoader
 from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
@@ -11,7 +11,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from settings import DatabaseSettings, BaseModelSettings
 
-collection_name = "documents"
+collection_name = "agents"
 db_settings = DatabaseSettings()
 model_settings = BaseModelSettings()
 
@@ -168,3 +168,6 @@ main_chat = RAGPoweredChatOpenAI(settings=model_settings)
 if __name__ == '__main__':
     main_chat.initialize()
     #indexing_stage_rag.process("./docs/what_is_llm.txt")
+    #indexing_stage_rag.process("./docs/NaturalLanguageProcessing.pdf")
+    #indexing_stage_rag.process("https://docs.langchain.com/oss/python/langchain/agents")
+
