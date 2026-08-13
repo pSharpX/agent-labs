@@ -87,3 +87,5 @@ run6:
 
 run7:
 	python rag.py
+run8:
+	python vector_store.py
