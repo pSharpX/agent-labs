@@ -61,8 +61,6 @@ class VectorStoreResolver:
             raise NotImplementedError("Provider not implemented")
         elif provider is VectorStoreProvider.MONGODB:
             raise NotImplementedError("Provider not implemented")
-        elif provider is VectorStoreProvider.COSMOSDB:
-            raise NotImplementedError("Provider not implemented")
 
         return PGVector(
             embeddings=embeddings_model,
