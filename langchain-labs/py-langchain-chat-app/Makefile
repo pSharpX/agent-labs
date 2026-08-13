@@ -81,11 +81,11 @@ run4:
 	python chat.py
 run5:
 	python generic_chat.py
-
 run6:
 	python tools.py
-
 run7:
 	python rag.py
 run8:
 	python vector_store.py
+run9:
+	python memory.py

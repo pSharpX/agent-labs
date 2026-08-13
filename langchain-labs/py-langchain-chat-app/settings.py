@@ -26,7 +26,7 @@ class BaseModelSettings(BaseSettings, case_sensitive=False):
     provider: str = Field("openai", max_length=200, min_length=5)
     model_name: str = Field("gpt-3.5-turbo", alias="model_name", max_length=200, min_length=5)
     temperature: float = Field(0.2)
-    max_tokens: int = Field(100)
+    max_tokens: int = Field(1000)
     verbose: bool = Field(False)
 
     @field_validator('provider', mode='after')
