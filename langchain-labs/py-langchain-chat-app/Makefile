@@ -89,3 +89,5 @@ run8:
 	python vector_store.py
 run9:
 	python memory.py
+run10:
+	python graph.py
