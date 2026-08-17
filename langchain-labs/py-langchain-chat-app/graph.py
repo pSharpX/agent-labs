@@ -14,6 +14,21 @@ from helpers import search_serpapi
 
 
 @tool
+def save_content(content: str, file_name: str) -> str:
+    """Save the content to a Markdown file.
+
+    Args:
+        content: content to save
+        file_name: name of the file to save. It must include the Markdown extension.
+    """
+    try:
+        with open(f"./articles/{file_name}", "x") as f:
+            f.write(content)
+    except FileExistsError:
+        return f"File {file_name} already exists!"
+    return f"File {file_name} saved !"
+
+@tool
 def search_web(query: str) -> str:
     """Search the web for current information.
 
@@ -44,6 +59,7 @@ def fetch_web_page(url: str) -> str:
 tools_registry: dict = {
     "search_web": search_web,
     "fetch_web_page": fetch_web_page,
+    "save_content": save_content
 }
 
 MAX_ITERATIONS = 20
@@ -72,6 +88,11 @@ class MultiNodeGraphPoweredChat:
             model_provider=self.settings.provider,
             temperature="0.1",
         ).bind_tools([search_web, fetch_web_page])
+        self.content_saver_model = init_chat_model(
+            model=self.settings.model_name,
+            model_provider=self.settings.provider,
+            temperature="0.8",
+        ).bind_tools([save_content])
         self.model = init_chat_model(
             model=self.settings.model_name,
             model_provider=self.settings.provider,
@@ -151,9 +172,88 @@ class MultiNodeGraphPoweredChat:
 
         The output must be ready to render directly as a Markdown article.
         """)
-        self.content_exporter_prompt = SystemMessage(content="""
+        self.content_saver_prompt = SystemMessage(content="""
+        # Goal:
+        - You are a Markdown File Writer Agent.
+        - Your responsibility is to take a finalized Markdown article, determine an appropriate filename, and save the article to the local filesystem using the **save_content** tool.
+        - You are the final stage of the content-generation pipeline.
+                
+        # Objective
+        Given a finalized Markdown article:
+
+        - Determine an appropriate filename.
+        - Generate a filesystem-safe .md filename.
+        - Save the complete article using the **save_content** tool.
+        - Confirm that the file was successfully saved.
+
+        # Available Tools
+        - **save_content**: Save the article to the local filesystem.
+        
+        The tool should receive:
+        - content: The complete Markdown article.
+        - file_name: The filename to create.
+            
+        Always use this tool to save the article.
+                
+        # Filename Instructions
+        Generate the filename from the article's topic or title.
+        
+        The filename must:
+        - End with .md
+        - Use lowercase characters
+        - Use hyphens (-) between words
+        - Contain only filesystem-safe characters
+        - Avoid special characters
+        - Avoid unnecessary words
+        - Be descriptive enough to identify the article
+        - Prefer the article's Markdown # title when available
+        
+        Examples
+        Artificial Intelligence in Healthcare
+        → artificial-intelligence-in-healthcare.md
+        
+        The History of Deep Learning
+        → history-of-deep-learning.md
+        
+        What Is Retrieval-Augmented Generation?
+        → retrieval-augmented-generation.md
+        
+        10 Benefits of Cloud Computing
+        → benefits-of-cloud-computing.md        
+        
+        # Content Preservation
+        The Markdown article must be saved exactly as provided.
+        
+        Do not:
+        - Rewrite the article
+        - Summarize the article
+        - Remove sections
+        - Change Markdown formatting
+        - Add commentary
+        - Add metadata
+        - Add a new title
+        - Modify links
+        - Correct grammar
+        - Change citations
+        
+        # Input
+        - The finalized Markdown article produced by the Content Agent
+        
+        # Output
+        After successfully saving the file, return a concise confirmation containing:
+
+        - The generated filename.
+        - The fact that the article was successfully saved.
+        
+        Example:
+
+        Article successfully saved.
+        
+        File: artificial-intelligence-in-healthcare.md
+        
+        Do not return the full article in the response.
         """)
-        self.builder = StateGraph(state_schema=State, input_schema=Input, output_schema=Output)
+        self.builder = StateGraph(state_schema=State, input_schema=Input)
         self.graph = self.__build()
 
     @staticmethod
@@ -177,7 +277,6 @@ class MultiNodeGraphPoweredChat:
             *state["messages"],
             user_message
         ]
-        init_len = len(messages)
         # Tools call execution support
         for _ in range(MAX_ITERATIONS):
             answer_msg = self.content_generator_model.invoke(messages)
@@ -191,12 +290,13 @@ class MultiNodeGraphPoweredChat:
 
         return {
             "research": answer_msg.content,
-            "messages": messages[init_len-1:],
+            "messages": [user_message, messages[-1]],
         }
 
     def __format_content(self, state: State):
         messages = [
             self.content_formatter_prompt,
+            # Contains user's topic, tool_calls, search responses and research content from prev steps
             *state["messages"]
         ]
         answer_msg = self.model.invoke(messages)
@@ -206,20 +306,38 @@ class MultiNodeGraphPoweredChat:
             "messages": answer_msg,
         }
 
-    def __export_content(self, state: State):
-        answer_msg = self.model.invoke(state["messages"])
+    def __save_content(self, state: State):
+        # Contains user's topic, tool_calls, search responses, research content and article content from prev steps
+        # *state["messages"]
+        messages = [
+            self.content_saver_prompt,
+            # Contains article content from prev steps
+            state["messages"][-1]
+        ]
+        # Tools call execution support
+        for _ in range(MAX_ITERATIONS):
+            answer_msg = self.content_saver_model.invoke(messages)
+            messages.append(answer_msg)
+            if not answer_msg.tool_calls:
+                break
+
+            messages.extend(MultiNodeGraphPoweredChat.__execute_tools(answer_msg.tool_calls))
+        else:
+            raise RuntimeError("Chat exceeded maximum tool interactions")
 
         return {
-            "messages": [answer_msg],
+            "messages": messages[-1],
         }
 
     def __build(self):
         self.builder.add_node("content_generator", self.__generate_content)
         self.builder.add_node("content_formatter", self.__format_content)
+        self.builder.add_node("content_saver", self.__save_content)
 
         self.builder.add_edge(START, "content_generator")
         self.builder.add_edge("content_generator", "content_formatter")
-        self.builder.add_edge("content_formatter", END)
+        self.builder.add_edge("content_formatter", "content_saver")
+        self.builder.add_edge("content_saver", END)
 
         return self.builder.compile()
 
@@ -238,8 +356,6 @@ class MultiNodeGraphPoweredChat:
             state = self.graph.invoke(input={
                 "user_topic": question
             }, config=config)
-            print("RESEARCH:")
-            print(state["research"])
             print("ARTICLE:")
             print(state["article"])
 
