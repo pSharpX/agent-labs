@@ -1,16 +1,17 @@
 import uuid
-from typing import Annotated, TypedDict
+import operator
+from typing import Annotated, TypedDict, Literal
 
 from langchain.tools import tool
 from langchain.chat_models import init_chat_model
-from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage, AnyMessage
 from langgraph.graph import StateGraph, START, END, MessagesState
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph.message import add_messages
 from langchain_community.document_loaders import WebBaseLoader
 
 from settings import BaseModelSettings
-from helpers import search_serpapi
+from helpers import search_serpapi, add, mul, div, sub
 
 
 @tool
@@ -59,10 +60,17 @@ def fetch_web_page(url: str) -> str:
 tools_registry: dict = {
     "search_web": search_web,
     "fetch_web_page": fetch_web_page,
-    "save_content": save_content
+    "save_content": save_content,
+    "add": add,
+    "sub": sub,
+    "mul": mul,
+    "div": div
 }
 
 MAX_ITERATIONS = 20
+
+class CustomMessageState(TypedDict):
+    messages: Annotated[list[AnyMessage], operator.add]
 
 class State(TypedDict):
     messages: Annotated[list, add_messages]
@@ -360,6 +368,92 @@ class MultiNodeGraphPoweredChat:
             print(state["article"])
 
 
+class ToolNodeGraphPoweredChat:
+    """A langgraph powered chat that implement tool-based nodes to perform as helpful assistant"""
+    def __init__(self):
+        self.settings = BaseModelSettings()
+        self.model = init_chat_model(
+            model=self.settings.model_name,
+            model_provider=self.settings.provider,
+            temperature=self.settings.temperature,
+        ).bind_tools([add, sub, mul, div])
+        self.builder = StateGraph(CustomMessageState)
+        self.system_prompt = SystemMessage(content="You are a helpful assistant tasked with performing arithmetic on a set of inputs.")
+        self.graph = self.__build()
+
+    def __llm_node(self, state: CustomMessageState):
+        """LLM decides whether to call a tool or not"""
+        messages = [
+            self.system_prompt,
+            *state["messages"]
+        ]
+        answer_msg = self.model.invoke(messages)
+
+        return {
+            "messages": [answer_msg],
+        }
+
+    @staticmethod
+    def __tool_node(state: CustomMessageState):
+        """Perform the tool call"""
+
+        result = []
+        for tool_call in state["messages"][-1].tool_calls:
+            selected_tool = tools_registry[tool_call["name"].lower()]
+            tool_output = selected_tool.invoke(tool_call["args"])
+            result.append(
+                ToolMessage(
+                    content=tool_output,
+                    tool_call_id=tool_call["id"]
+                )
+            )
+
+        return {
+            "messages": result,
+        }
+
+    @staticmethod
+    def  __should_continue(state: CustomMessageState) -> Literal["tool_node", END]:
+        """Decide if we should continue the loop or stop based upon whether the LLM made a tool call"""
+
+        messages = state["messages"]
+        last_message = messages[-1]
+
+        # If LLM makes a tool call, then perform an action
+        if last_message.tool_calls:
+            return "tool_node"
+
+        # Otherwise, we stop (reply to the user)
+        return END
+
+    def __build(self):
+        self.builder.add_node("llm_node", self.__llm_node)
+        self.builder.add_node("tool_node", self.__tool_node)
+
+        self.builder.add_edge(START, "llm_node")
+        self.builder.add_conditional_edges("llm_node", self.__should_continue, ["tool_node", END])
+        self.builder.add_edge("tool_node", "llm_node")
+
+        return self.builder.compile()
+
+    def draw_graph(self):
+        self.graph.get_graph().draw_mermaid_png(output_file_path="tool_node_graph.png")
+
+    def initialize(self, config):
+        print("Welcome to Assistant ChatPrompt!")
+        print("Start typing ('c' for exit) >> ")
+        while True:
+            question = input()
+            if question == "c":
+                break
+            elif question.strip() == "":
+                continue
+            state = self.graph.invoke(input={
+                "messages": [HumanMessage(content=question)]
+            }, config=config)
+            print(state["messages"][-1].content)
+
+
 class MemorySaverSingleNodeGraphPoweredChat:
     """A langgraph powered chat with memory that implement a single node to perform as helpful assistant"""
     def __init__(self):
@@ -411,7 +505,8 @@ class MemorySaverSingleNodeGraphPoweredChat:
 
 
 #main_chat = MemorySaverSingleNodeGraphPoweredChat()
-main_chat = MultiNodeGraphPoweredChat()
+#main_chat = MultiNodeGraphPoweredChat()
+main_chat = ToolNodeGraphPoweredChat()
 
 if __name__ == '__main__':
     thread_config = {"configurable": {"thread_id": str(uuid.uuid4())}}
