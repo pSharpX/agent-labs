@@ -1,6 +1,5 @@
 import requests
 from langchain.tools import tool
-from langchain_community.utilities import ArxivAPIWrapper, SerpAPIWrapper
 from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage, AIMessage
 from langchain_openai.chat_models import ChatOpenAI
 from settings import BaseToolSettings, BaseModelSettings
@@ -21,8 +20,7 @@ tools_settings = BaseToolSettings()
 model_settings = BaseModelSettings()
 
 weather_client = WeatherClient(tools_settings)
-serpapi = SerpAPIWrapper()
-arxiv = ArxivAPIWrapper()
+
 
 @tool
 def get_weather(city: str) -> str:
@@ -85,23 +83,7 @@ def div(a: int | float, b: int | float) -> int | float:
     """
     return a / b
 
-@tool
-def search_web(query: str) -> str:
-    """Search the web for current information.
 
-    Args:
-        query: term to search for
-    """
-    return serpapi.run(query)
-
-@tool
-def get_papers(query: str) -> str:
-    """Search on ArXiv for deep research and investigation.
-
-    Args:
-        query: term to search for
-    """
-    return arxiv.run(query)
 
 tools_registry: dict = {
     "get_weather": get_weather,
@@ -109,8 +91,6 @@ tools_registry: dict = {
     "sub": sub,
     "mul": mul,
     "div": div,
-    "search_web": search_web,
-    "get_papers": get_papers,
 }
 
 MAX_ITERATIONS = 20
@@ -119,7 +99,7 @@ class ToolsPoweredChatOpenAI:
     def __init__(self, settings: BaseModelSettings):
         self.model_settings = settings
         self.model = (ChatOpenAI(model=self.model_settings.model_name, temperature=self.model_settings.temperature, verbose=True)
-         .bind_tools([get_weather, add, sub, mul, div, search_web, get_papers]))
+         .bind_tools([get_weather, add, sub, mul, div]))
 
         # LangChain chat models can expose a dictionary of supported features and capabilities through a profile attribute:
         # print(self.model.profile)
@@ -149,27 +129,6 @@ class ToolsPoweredChatOpenAI:
         # Output
         - Steps and result in Markdown format
         """)
-
-        # Researcher Expert Prompt
-        # self.system_msg = SystemMessage("""
-        # # Goal:
-        # - Perform a deep research
-        #
-        # # Tools
-        # - **search_web**: Got web pages on the Web
-        # - **get_papers**: Got papers from ArXiv
-        #
-        # # Instructions
-        # - You must follow the user topic in the Web and ArXiv
-        # - Then you must produce short review including citations in IEEE format.
-        # - This is the structure of the review: (1) Summary, (2) Background and concepts, (3) Trends and challenges, (4) Conclusions, (5) References.
-        #
-        # # Input
-        # - User query
-        #
-        # # Output
-        # - Review and conclusions in markdown
-        # """)
 
     @staticmethod
     def __execute_tools(tool_calls) -> list:

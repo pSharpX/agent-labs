@@ -24,4 +24,4 @@ beautifulsoup4==4.15.0
 pypdf==6.16.1
 firecrawl-anydoc==0.1.9
 wikipedia==1.4.0
-serpapi==0.1.4
+serpapi==1.1.0

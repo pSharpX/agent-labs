@@ -2,7 +2,12 @@ import requests
 import serpapi
 import os
 
+from langchain.tools import tool
+from langchain_community.utilities import ArxivAPIWrapper
+
 client = serpapi.Client(api_key=os.environ["SERPAPI_API_KEY"])
+
+arxiv = ArxivAPIWrapper()
 
 def search_serpapi(query: str, k: int=3) -> list[str]:
     """Search the web for information about a topic."""
@@ -37,3 +42,12 @@ def search_wikipedia(query: str) -> str:
         f"- {result['title']}: {result['snippet']}"
         for result in results
     )
+
+@tool
+def get_papers(query: str) -> str:
+    """Search on ArXiv for deep research and investigation.
+
+    Args:
+        query: term to search for
+    """
+    return arxiv.run(query)
