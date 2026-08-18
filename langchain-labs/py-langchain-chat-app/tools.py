@@ -3,6 +3,7 @@ from langchain.tools import tool
 from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage, AIMessage
 from langchain_openai.chat_models import ChatOpenAI
 from settings import BaseToolSettings, BaseModelSettings
+from helpers import add, sub, mul, div
 
 class WeatherClient:
     def __init__(self, config: BaseToolSettings):
@@ -43,47 +44,6 @@ def get_weather(city: str) -> str:
         f"- Humidity: {humidity}%\n"
         f"- Wind Speed: {wind} k/h"
     )
-
-@tool
-def add(a: int | float, b: int | float) -> int | float:
-    """Adds a and b
-
-    Args:
-        a: The first number
-        b: The second number
-    """
-    return a + b
-
-@tool
-def sub(a: int | float, b: int | float) -> int | float:
-    """Subtracts a and b
-    Args:
-        a: The first number
-        b: The second number
-    """
-    return a - b
-
-@tool
-def mul(a: int | float, b: int | float) -> int | float:
-    """Multiplies a and b
-
-    Args:
-        a: The first number
-        b: The second number
-    """
-    return a * b
-
-@tool
-def div(a: int | float, b: int | float) -> int | float:
-    """Divides a and b
-
-    Args:
-        a: The first number
-        b: The second number
-    """
-    return a / b
-
-
 
 tools_registry: dict = {
     "get_weather": get_weather,

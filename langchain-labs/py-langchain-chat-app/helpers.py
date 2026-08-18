@@ -51,3 +51,42 @@ def get_papers(query: str) -> str:
         query: term to search for
     """
     return arxiv.run(query)
+
+@tool
+def add(a: int | float, b: int | float) -> int | float:
+    """Adds a and b
+
+    Args:
+        a: The first number
+        b: The second number
+    """
+    return a + b
+
+@tool
+def sub(a: int | float, b: int | float) -> int | float:
+    """Subtracts a and b
+    Args:
+        a: The first number
+        b: The second number
+    """
+    return a - b
+
+@tool
+def mul(a: int | float, b: int | float) -> int | float:
+    """Multiplies a and b
+
+    Args:
+        a: The first number
+        b: The second number
+    """
+    return a * b
+
+@tool
+def div(a: int | float, b: int | float) -> int | float:
+    """Divides a and b
+
+    Args:
+        a: The first number
+        b: The second number
+    """
+    return a / b
