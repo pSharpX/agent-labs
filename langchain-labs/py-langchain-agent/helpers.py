@@ -5,15 +5,29 @@ import os
 from langchain.tools import tool
 from langchain_community.utilities import ArxivAPIWrapper
 
-client = serpapi.Client(api_key=os.environ["SERPAPI_API_KEY"])
+from settings import BaseToolSettings
+
+#client = serpapi.Client(api_key=os.environ["SERPAPI_API_KEY"])
 
 arxiv = ArxivAPIWrapper()
 
-def search_serpapi(query: str, k: int=3) -> list[str]:
-    """Search the web for information about a topic."""
-    res = client.search(q=query, engine="google", hl="en", gl="us")
-    results = res["organic_results"] if len(res["organic_results"]) <= k else res["organic_results"][:k]
-    return [ item["link"] for item in results]
+
+class WeatherClient:
+    def __init__(self, config: BaseToolSettings):
+        self.api_key = config.weather_apikey
+        self.api_url = config.weather_url
+
+    def get_weather(self, city: str) -> dict | None:
+        response = requests.get(f"{self.api_url}/v1/current.json?key={self.api_key}&q={city}")
+        if response.status_code == 200:
+            return response.json()
+        return None
+
+#def search_serpapi(query: str, k: int=3) -> list[str]:
+#    """Search the web for information about a topic."""
+#    res = client.search(q=query, engine="google", hl="en", gl="us")
+#    results = res["organic_results"] if len(res["organic_results"]) <= k else res["organic_results"][:k]
+#    return [ item["link"] for item in results]
 
 def search_wikipedia(query: str) -> str:
     """Search Wikipedia for information about a topic."""
