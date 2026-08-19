@@ -9,11 +9,14 @@ from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage, An
 
 from settings import BaseModelSettings, BaseToolSettings
 from helpers import add, sub, mul, div, WeatherClient
+from src.contacts.services.contact_service import ContactService
 
 tools_settings = BaseToolSettings()
 model_settings = BaseModelSettings()
 
 weather_client = WeatherClient(tools_settings)
+contact_service = ContactService()
+
 
 @tool
 def get_weather(city: str) -> str:
@@ -111,12 +114,22 @@ class WeatherWiseAgent:
             state = self.agent.invoke(input={
                 "messages": [HumanMessage(content=question)]
             }, config=config)
-            print(state["messages"])
             print(state["messages"][-1].content)
+
+
+class AgendaHandlerAgent:
+    def __init__(self):
+        self.settings = BaseModelSettings()
+        self.model = init_chat_model(
+            model=self.settings.model_name,
+            model_provider=self.settings.provider,
+            temperature=self.settings.temperature,
+        )
 
 
 main_agent = WeatherWiseAgent()
 
 if __name__ == '__main__':
     thread_config = {"configurable": {"thread_id": str(uuid.uuid4())}}
-    main_agent.initialize(thread_config)
+    #main_agent.initialize(thread_config)
+    print(contact_service.get_contact("40cdbc6e-88fc-470e-9162-b8dc7e2bbcab"))
