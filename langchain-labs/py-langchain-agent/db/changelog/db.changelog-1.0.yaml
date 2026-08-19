@@ -14,6 +14,12 @@ databaseChangeLog:
         - sql:
             sql: CREATE EXTENSION IF NOT EXISTS vector;
   - changeSet:
+      id: enable-pgcrypto
+      author: christian.rivera
+      changes:
+        - sql:
+            sql: CREATE EXTENSION IF NOT EXISTS pgcrypto;
+  - changeSet:
       id: create-document-table
       author: christian.rivera
       comment: add document table definition
@@ -38,5 +44,85 @@ databaseChangeLog:
                   type: vector(1536)
                   constraints:
                     nullable: true
-
-
+  - changeSet:
+      id: create-contacts-table
+      author: christian.rivera
+      comment: add contacts table definition
+      changes:
+        - createTable:
+            tableName: contacts
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: first_name
+                  type: varchar(100)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: last_name
+                  type: varchar(100)
+              - column:
+                  name: display_name
+                  type: varchar(100)
+              - column:
+                  name: birthday
+                  type: date
+              - column:
+                  name: nationality
+                  type: varchar(100)
+              - column:
+                  name: email
+                  type: varchar(100)
+              - column:
+                  name: phone_number
+                  type: varchar(50)
+              - column:
+                  name: address_line_1
+                  type: varchar(255)
+              - column:
+                  name: address_line_2
+                  type: varchar(255)
+              - column:
+                  name: city
+                  type: varchar(100)
+              - column:
+                  name: country
+                  type: varchar(100)
+              - column:
+                  name: company
+                  type: varchar(255)
+              - column:
+                  name: job_title
+                  type: varchar(150)
+              - column:
+                  name: social_networks
+                  type: ${json.type}
+              - column:
+                  name: preferences
+                  type: ${json.type}
+              - column:
+                  name: notes
+                  type: text
+              - column:
+                  name: metadata
+                  type: ${json.type}
+  - changeSet:
+      id: default-contacts-records
+      author: christian.rivera
+      comment: insert default contacts records for testing
+      changes:
+        - sql:
+            dbms: postgresql, mysql
+            comment: 'Insert contacts records for testing'
+            splitStatements: true
+            endDelimiter: ';'
+            stripComments: true
+            sql: |
+              INSERT INTO contacts (first_name, last_name, display_name, birthday, nationality, email, phone_number, address_line_1, address_line_2, city, country, company, job_title, social_networks, preferences, notes, metadata)
+              VALUES ('Michael James', 'Carter', 'Michael Carter', '1984-01-18', 'American', 'michael.carter@example.com', '+1-202-555-0111', '742 Example Boulevard', 'Suite 12', 'Washington', 'United States', 'Example Innovations', 'Senior Software Engineer', '{"linkedin":"https://linkedin.com/in/michael-carter","github":"michael-carter","twitter":"@mcarter"}'::jsonb, '{"communication":{"preferred_channel":"email","preferred_time":"09:00-12:00"},"meeting":{"preferred_days":["monday","wednesday"],"preferred_duration_minutes":30},"language":"en","timezone":"America/New_York"}'::jsonb, 'Met during a software architecture conference.', '{"relationship":"professional","tags":["software","architecture","java"],"how_we_met":"technology conference"}'::jsonb );
