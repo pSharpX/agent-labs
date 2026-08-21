@@ -107,6 +107,7 @@ class SQLAlchemyContactRepository(ContactRepository):
         model = ContactMapper.to_model(contact)
         self.session.add(model)
         self.session.flush()
+        self.session.commit()
 
         return ContactMapper.to_domain(model)
 
@@ -120,6 +121,7 @@ class SQLAlchemyContactRepository(ContactRepository):
 
         ContactMapper.update_model(model, contact)
         self.session.flush()
+        self.session.commit()
 
         return ContactMapper.to_domain(model)
 
@@ -133,3 +135,4 @@ class SQLAlchemyContactRepository(ContactRepository):
         if model is not None:
             self.session.delete(model)
             self.session.flush()
+            self.session.commit()
