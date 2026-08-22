@@ -19,6 +19,12 @@ class VectorStoreProvider(str, Enum):
     REDIS = "redis"
     WEAVIATE = "weaviate"
 
+class LangFuseSettings(BaseSettings, case_sensitive=False):
+    model_config = SettingsConfigDict(env_prefix="langfuse_", env_file=".env", env_file_encoding="utf-8", extra="allow")
+
+    base_url: str = Field("http://localhost:3000", max_length=300, min_length=5)
+    public_key: str = Field(max_length=100, min_length=2)
+    secret_key: str = Field(max_length=100, min_length=2)
 
 class BaseModelSettings(BaseSettings, case_sensitive=False):
     model_config = SettingsConfigDict(env_prefix="model_", env_file=".env", env_file_encoding="utf-8", extra="allow")

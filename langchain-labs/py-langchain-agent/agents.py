@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from prompts import AGENDA_HANDLER_SYSTEM_PROMPT
 from settings import BaseModelSettings, BaseToolSettings
+from config import langfuse_handler
 from helpers import add, sub, mul, div, WeatherClient
 from src.contacts.domain.contact import Contact
 from src.contacts.services.contact_service import ContactService
@@ -27,7 +28,7 @@ class AgendaState(AgentState):
     display_name: str
     contacts: list[dict]
 
-class AgendaContext(BaseModel):
+class AgendaContext(TypedDict):
     user_id: str
     display_name: str
 
@@ -238,11 +239,15 @@ class AgendaHandlerAgent:
                 break
             elif question.strip() == "":
                 continue
-            state = self.agent.invoke(input={
-                "user_id": input_obj["user_id"],
-                "display_name": input_obj["display_name"],
-                "messages": [HumanMessage(content=question)]
-            }, config=config, context=AgendaContext(user_id=input_obj["user_id"], display_name=input_obj["display_name"]))
+            state = self.agent.invoke(
+                input={
+                    "user_id": input_obj["user_id"],
+                    "display_name": input_obj["display_name"],
+                    "messages": [HumanMessage(content=question)]
+                },
+                config=config,
+                context=input_obj,
+            )
             print(state["messages"][-1].content)
 
 
@@ -261,7 +266,12 @@ def load_default_user_info(user_id: str = "6d95e39d-d5b0-4584-91b1-d1fc1efff25b"
 main_agent = AgendaHandlerAgent()
 
 if __name__ == '__main__':
-    thread_config = {"configurable": {"thread_id": str(uuid.uuid4())}}
+    thread_config = {
+        "callbacks": [langfuse_handler],
+        "configurable": {
+            "thread_id": str(uuid.uuid4())
+        }
+    }
     contact_info = load_default_user_info()
     #main_agent.initialize(config=thread_config)
     main_agent.initialize(input_obj= {
