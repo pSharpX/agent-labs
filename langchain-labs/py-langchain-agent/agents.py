@@ -5,11 +5,12 @@ from langchain.agents import create_agent, AgentState
 from langchain.tools import tool
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage, AnyMessage
+from langchain_core.runnables import RunnableConfig
 from langgraph.prebuilt import ToolRuntime
 from langgraph.types import Command
 from pydantic import BaseModel
 
-from prompts import AGENDA_HANDLER_SYSTEM_PROMPT
+from prompts import AGENDA_HANDLER_SYSTEM_PROMPT, WEATHER_ASSISTANT_SYSTEM_PROMPT, CINE_FINDER_SYSTEM_PROMPT
 from settings import BaseModelSettings, BaseToolSettings
 from config import langfuse_handler
 from helpers import add, sub, mul, div, WeatherClient
@@ -151,44 +152,7 @@ class WeatherWiseAgent:
             temperature=self.settings.temperature,
         )
         self.system_prompt = SystemMessage(
-            content="""
-            # Goal:
-            - You are a helpful weather assistant specialized exclusively in providing weather information. Provide accurate, concise and up-to-date weather information
-            
-            # Tools
-            - **get_weather**: Get accurate weather information
-            
-            # Instructions
-            - Always use the **get_weather** tool to retrieve weather information.
-            - Never guess or fabricate weather data.
-            - Clearly state the location and relevant weather details such as temperature, conditions, precipitation, and forecast when available.
-            - If the location is unclear, ask the user to specify it.
-            
-            # Scope
-            You can answer questions about:
-            - Current weather
-            - Temperature
-            - Weather conditions
-            - Rain or precipitation
-            - Wind
-            - Humidity
-            - Weather forecasts
-            - Other information directly related to weather conditions
-            
-            # Guardrails
-            - Stay on topic: Only answer questions related to weather.
-            - If the user asks an unrelated question, politely refuse and redirect them to weather-related questions.
-            - Do not provide general knowledge, news, sports, entertainment, coding help, medical advice, or other unrelated information.
-            - Do not fabricate weather information or tool results.
-            - Do not use information from your own knowledge when the get_whether tool can provide the requested data.
-            - Do not claim to have weather information that was not returned by the tool.
-            - Do not infer a city when the user's intended location is ambiguous; ask for clarification.
-            - Keep responses concise and focused on the user's weather request.
-            
-            # Off-Topic Response
-            For unrelated requests, respond with:
-            - I'm a weather assistant, so I can only help with weather-related questions. Please provide a city and I'll check the weather for you.
-            """)
+            content=WEATHER_ASSISTANT_SYSTEM_PROMPT)
         self.agent = create_agent(
             model=self.model,
             tools=[get_weather],
@@ -230,7 +194,7 @@ class AgendaHandlerAgent:
             context_schema=AgendaContext
         )
 
-    def initialize(self, input_obj: dict, config):
+    def initialize(self, input_obj: dict, session_id: str):
         print("Welcome to Agenda Handler Agent!")
         print("Start typing ('c' for exit) >> ")
         while True:
@@ -245,7 +209,17 @@ class AgendaHandlerAgent:
                     "display_name": input_obj["display_name"],
                     "messages": [HumanMessage(content=question)]
                 },
-                config=config,
+                config={
+                    "callbacks": [langfuse_handler],
+                    "metadata": {
+                        "langfuse_user_id": input_obj["user_id"],
+                        "langfuse_session_id": session_id,
+                        "langfuse_tags": ["environment:dev", "framework:langchain", "application:py-langchain-agent"]
+                    },
+                    "configurable": {
+                        "thread_id": str(uuid.uuid4())
+                    }
+                },
                 context=input_obj,
             )
             print(state["messages"][-1].content)
@@ -266,15 +240,9 @@ def load_default_user_info(user_id: str = "6d95e39d-d5b0-4584-91b1-d1fc1efff25b"
 main_agent = AgendaHandlerAgent()
 
 if __name__ == '__main__':
-    thread_config = {
-        "callbacks": [langfuse_handler],
-        "configurable": {
-            "thread_id": str(uuid.uuid4())
-        }
-    }
     contact_info = load_default_user_info()
     #main_agent.initialize(config=thread_config)
     main_agent.initialize(input_obj= {
         "user_id": contact_info["user_id"],
         "display_name": contact_info["display_name"],
-    }, config=thread_config)
+    }, session_id=str(uuid.uuid4()))

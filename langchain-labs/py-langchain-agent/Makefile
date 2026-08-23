@@ -14,6 +14,14 @@ install:
 
 initialize:
 	docker compose up
+start:
+	docker compose start
+stop:
+	docker compose stop
+down:
+	docker compose down
+destroy:
+	docker compose down -v
 
 generate-sql:
 	docker run --rm \
