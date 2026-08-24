@@ -1,4 +1,5 @@
 import uuid
+from contextlib import ExitStack
 from typing import Annotated, TypedDict, Literal
 import warnings
 
@@ -6,15 +7,16 @@ from langchain.agents import create_agent, AgentState
 from langchain.agents.middleware import before_model, after_model
 from langchain.tools import tool
 from langchain.chat_models import init_chat_model
-from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage, AnyMessage
-from langchain_core.runnables import RunnableConfig
+from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
+from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.checkpoint.postgres import PostgresSaver
 from langgraph.prebuilt import ToolRuntime
 from langgraph.runtime import Runtime
 from langgraph.types import Command
 from pydantic import BaseModel
 
 from prompts import AGENDA_HANDLER_SYSTEM_PROMPT, WEATHER_ASSISTANT_SYSTEM_PROMPT, CINE_FINDER_SYSTEM_PROMPT
-from settings import BaseModelSettings, BaseToolSettings
+from settings import BaseModelSettings, BaseToolSettings, DatabaseSettings
 from config import langfuse_handler
 from helpers import add, sub, mul, div, WeatherClient
 from src.contacts.domain.contact import Contact
@@ -27,7 +29,6 @@ warnings.filterwarnings(
 )
 
 tools_settings = BaseToolSettings()
-model_settings = BaseModelSettings()
 
 weather_client = WeatherClient(tools_settings)
 contact_service = ContactService()
@@ -195,7 +196,7 @@ class WeatherWiseAgent:
             name="weather-wise-agent",
         )
 
-    def initialize(self, config):
+    def start(self, config):
         print("Welcome to Weather Wise Agent!")
         print("Start typing ('c' for exit) >> ")
         while True:
@@ -212,13 +213,19 @@ class WeatherWiseAgent:
 
 class AgendaHandlerAgent:
     def __init__(self):
-        self.settings = BaseModelSettings()
+        self.model_settings = BaseModelSettings()
+        self.db_settings = DatabaseSettings()
         self.model = init_chat_model(
-            model=self.settings.model_name,
-            model_provider=self.settings.provider,
-            temperature=self.settings.temperature,
+            model=self.model_settings.model_name,
+            model_provider=self.model_settings.provider,
+            temperature=self.model_settings.temperature,
         )
         self.system_prompt = AGENDA_HANDLER_SYSTEM_PROMPT
+        self.exit_stack = ExitStack()
+        self.checkpointer = self.exit_stack.enter_context(
+            PostgresSaver.from_conn_string(self.db_settings.raw_url)
+        )
+        self.checkpointer.setup()
         # noinspection bad-argument-type
         self.agent = create_agent(
             model=self.model,
@@ -227,10 +234,14 @@ class AgendaHandlerAgent:
             middleware=[log_before_call, log_after_call],
             name="agenda-handler-agent",
             state_schema=AgendaState,
-            context_schema=AgendaContext
+            context_schema=AgendaContext,
+            checkpointer=self.checkpointer
         )
 
-    def initialize(self, input_obj: dict, session_id: str):
+    def on_destroy(self):
+        self.exit_stack.close()
+
+    def start(self, input_obj: dict, session_id: str):
         print("Welcome to Agenda Handler Agent!")
         print("Start typing ('c' for exit) >> ")
         while True:
@@ -253,7 +264,7 @@ class AgendaHandlerAgent:
                         "langfuse_tags": ["environment:dev", "framework:langchain", "application:py-langchain-agent"]
                     },
                     "configurable": {
-                        "thread_id": str(uuid.uuid4())
+                        "thread_id": session_id
                     }
                 },
                 context=input_obj,
@@ -277,8 +288,9 @@ main_agent = AgendaHandlerAgent()
 
 if __name__ == '__main__':
     contact_info = load_default_user_info()
-    #main_agent.initialize(config=thread_config)
-    main_agent.initialize(input_obj= {
+    #main_agent.start(config=thread_config)
+    main_agent.start(input_obj= {
         "user_id": contact_info["user_id"],
         "display_name": contact_info["display_name"],
     }, session_id=str(uuid.uuid4()))
+    main_agent.on_destroy()
