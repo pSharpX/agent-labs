@@ -1,12 +1,15 @@
 import uuid
 from typing import Annotated, TypedDict, Literal
+import warnings
 
 from langchain.agents import create_agent, AgentState
+from langchain.agents.middleware import before_model, after_model
 from langchain.tools import tool
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage, AnyMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.prebuilt import ToolRuntime
+from langgraph.runtime import Runtime
 from langgraph.types import Command
 from pydantic import BaseModel
 
@@ -16,6 +19,12 @@ from config import langfuse_handler
 from helpers import add, sub, mul, div, WeatherClient
 from src.contacts.domain.contact import Contact
 from src.contacts.services.contact_service import ContactService
+
+warnings.filterwarnings(
+    "ignore",
+    category=UserWarning,
+    module=r"pydantic\..*",
+)
 
 tools_settings = BaseToolSettings()
 model_settings = BaseModelSettings()
@@ -29,7 +38,7 @@ class AgendaState(AgentState):
     display_name: str
     contacts: list[dict]
 
-class AgendaContext(TypedDict):
+class AgendaContext(BaseModel):
     user_id: str
     display_name: str
 
@@ -78,7 +87,7 @@ def get_contact_info(runtime: ToolRuntime, contact_id: str) -> Contact | None:
 
 
 @tool
-def update_contact_info(runtime: ToolRuntime[AgendaContext, AgendaState], contact: Contact) -> str:
+def update_contact_info(runtime: ToolRuntime[AgendaContext, AgendaState], contact: Contact) -> Command:
     """Update an existing contact's information.
 
     Use this tool when the user requests changes to an existing contact.
@@ -90,11 +99,18 @@ def update_contact_info(runtime: ToolRuntime[AgendaContext, AgendaState], contac
             updated information to persist.
 
     Returns:
-        A Command containing the result of the contact update operation.
+        A Command confirming the result of the contact update operation.
     """
     user_id = runtime.context.user_id
     contact_service.update_contact(contact)
-    return "Contact info updated successfully !"
+    return Command(update={
+        "messages": [
+            ToolMessage(
+                "Contact info updated successfully !",
+                tool_call_id=runtime.tool_call_id
+            )
+        ]
+    })
 
 
 @tool
@@ -143,6 +159,25 @@ tools_registry: dict = {
 }
 
 
+@before_model
+def log_before_call(state: AgendaState, runtime: Runtime) -> None:
+    """Log messages before calling the model."""
+    messages = state["messages"]
+    print("================= START - BEFORE CALLING MODEL =================")
+    print(messages)
+    print("================= END - BEFORE CALLING MODEL =================")
+    return None
+
+@after_model
+def log_after_call(state: AgendaState, runtime: Runtime) -> None:
+    """Log messages after calling the model."""
+    messages = state["messages"]
+    print("================= START - AFTER CALLING MODEL =================")
+    print(messages)
+    print("================= END - AFTER CALLING MODEL =================")
+    return None
+
+
 class WeatherWiseAgent:
     def __init__(self):
         self.settings = BaseModelSettings()
@@ -189,6 +224,7 @@ class AgendaHandlerAgent:
             model=self.model,
             tools=[search_contact, get_contact_info, update_contact_info],
             system_prompt=self.system_prompt,
+            middleware=[log_before_call, log_after_call],
             name="agenda-handler-agent",
             state_schema=AgendaState,
             context_schema=AgendaContext
