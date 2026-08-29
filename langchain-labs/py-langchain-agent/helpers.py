@@ -2,6 +2,9 @@ import requests
 import serpapi
 import os
 
+from pathlib import Path
+from urllib.parse import urlparse
+
 from langchain.tools import tool
 from langchain_community.utilities import ArxivAPIWrapper
 
@@ -10,6 +13,14 @@ from settings import BaseToolSettings
 #client = serpapi.Client(api_key=os.environ["SERPAPI_API_KEY"])
 
 arxiv = ArxivAPIWrapper()
+
+
+class WebScrapper:
+    def __init__(self, api_url: str, api_key: str):
+        pass
+
+    def retrieve(self):
+        pass
 
 
 class WeatherClient:
@@ -104,3 +115,71 @@ def div(a: int | float, b: int | float) -> int | float:
         b: The second number
     """
     return a / b
+
+
+def classify_resource(resource: str) -> str:
+    """
+    Classify a resource as 'web', 'pdf', or 'text'.
+
+    Args:
+        resource: URL or local file path.
+
+    Returns:
+        One of: 'url', 'pdf', 'text'
+
+    Raises:
+        ValueError: If the resource type cannot be determined.
+    """
+    resource = resource.strip()
+
+    # Check if it is a URL
+    parsed = urlparse(resource)
+    if parsed.scheme in {"http", "https"} and parsed.netloc:
+        return "web"
+
+    # Check local file extension
+    path = Path(resource)
+    extension = path.suffix.lower()
+
+    # Common docs-based files
+    docs_extensions = {
+        ".doc",
+        ".docx",
+        ".docm",
+        ".ppt",
+        ".pps",
+        ".pot",
+        ".pptx",
+        ".pptm",
+        ".ppsx",
+        ".ppsm",
+        ".xls",
+        ".xlsx",
+        ".xlsm",
+        ".xlsb",
+        ".odt",
+        ".ods",
+        ".odp",
+        ".csv",
+        ".pdf",
+    }
+    if extension in docs_extensions:
+        return extension[1:]
+
+    # Common text-based files
+    text_extensions = {
+        ".txt",
+        ".md",
+        ".csv",
+        ".json",
+        ".xml",
+        ".html",
+        ".htm",
+        ".yaml",
+        ".yml",
+    }
+
+    if extension in text_extensions:
+        return "text"
+
+    raise ValueError(f"Unsupported resource type: {resource}")

@@ -19,6 +19,12 @@ class VectorStoreProvider(str, Enum):
     REDIS = "redis"
     WEAVIATE = "weaviate"
 
+class PDFLoader(str, Enum):
+    FIRECRAWL_ANYDOC = "firecrawl-anydoc"
+    DOC7 = "doc7"
+    DEFAULT = "default"
+
+
 class LangFuseSettings(BaseSettings, case_sensitive=False):
     model_config = SettingsConfigDict(env_prefix="langfuse_", env_file=".env", env_file_encoding="utf-8", extra="allow")
 
@@ -49,6 +55,15 @@ class BaseToolSettings(BaseSettings, case_sensitive=False):
 
     weather_apikey: str = Field(max_length=200, min_length=5)
     weather_url: str = Field(max_length=1000, min_length=5)
+    pdf_loader: str = Field("default", max_length=50, min_length=2)
+
+    @field_validator('pdf_loader', mode='after')
+    @classmethod
+    def validate_pdf_loader(cls, value: str) -> str:
+        is_valid = value in (member.value for member in PDFLoader)
+        if not is_valid:
+            raise ValueError('Invalid custom pdf loader value')
+        return value
 
 class DatabaseSettings(BaseSettings, case_sensitive=False):
     model_config = SettingsConfigDict(env_prefix="db_", env_file=".env", env_file_encoding="utf-8", extra="allow")

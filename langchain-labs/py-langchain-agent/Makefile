@@ -81,3 +81,6 @@ migrate:
 
 run:
 	python agents.py
+
+run_rag:
+	python rag.py
