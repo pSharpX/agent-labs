@@ -1,6 +1,7 @@
 import pickle
 import uuid
 from pathlib import Path
+from rich import print
 
 import anydoc
 from langchain_community.docstore import InMemoryDocstore
@@ -133,16 +134,34 @@ class RetrievalStageRAG:
         )
         self.retriever = self.vector_store.as_retriever(search_kwargs={"k": 3})
 
-    def retrieve(self, query: str):
+    def retrieve(self, query: str) -> list[Document]:
         return self.retriever.invoke(input=query)
 
 
 #indexing_stage_rag = IndexingStageRAG()
 retrieval_stage_rag = RetrievalStageRAG("temp_store")
 
+def display_results(results: list[Document]):
+    for index, doc in enumerate(results):
+        print(f"{index}. {doc.page_content}")
+
+
+def main():
+    print("Welcome to RAG!")
+    print("Start searching text (type 'c' for exit) >> ")
+    while True:
+        question = input()
+        if question == "c":
+            break
+        elif question.strip() == "":
+            continue
+        results = retrieval_stage_rag.retrieve(question)
+        display_results(results)
+
+
 if __name__ == '__main__':
     #indexing_stage_rag.process("./docs/agent/Catalogo_Productos_Servicios_ZEIT_2026.docx")
     #indexing_stage_rag.save_local("temp_store")
-    print(retrieval_stage_rag.retrieve("Defender"))
+    main()
 
 
