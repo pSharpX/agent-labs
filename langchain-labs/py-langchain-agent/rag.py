@@ -1,13 +1,12 @@
+import anydoc
+import faiss
 import pickle
 import uuid
+
 from pathlib import Path
 from rich import print
 
-import anydoc
 from langchain_community.docstore import InMemoryDocstore
-
-import faiss
-
 from langchain_community.document_loaders import TextLoader, WebBaseLoader, PyPDFLoader
 from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings

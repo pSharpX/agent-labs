@@ -9,6 +9,10 @@ DB_JDBC_URL=jdbc:postgresql://host.docker.internal:5432/vectordb
 test:
 	pytest
 
+clean:
+	pip freeze | xargs pip uninstall -y
+refresh:
+	pip freeze | xargs pip uninstall -y && pip install -r requirements.txt
 install:
 	pip install -r requirements.txt
 
@@ -84,3 +88,6 @@ run:
 
 run_rag:
 	python rag.py
+
+run_raptor:
+	python rag_raptor.py
