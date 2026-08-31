@@ -1,6 +1,5 @@
 import anydoc
 from langchain_community.docstore import InMemoryDocstore
-from langchain_core.prompts import ChatPromptTemplate
 
 import faiss
 import numpy as np
@@ -284,8 +283,16 @@ class IndexingStageRAG:
         self.faiss_index.add_with_ids(embeddings, self.index_to_docstore_id)
         return  self.faiss_index, self.docstore, self.index_to_docstore_id
 
-    def save_local(self, index_name: str):
-        raise NotImplementedError("Method not implemented")
+    def save_local(self, index_name: str, folder_path: str = "faiss"):
+        path = Path(folder_path)
+        path.mkdir(exist_ok=True, parents=True)
+
+        # save index separately since it is not picklable
+        faiss.write_index(self.faiss_index, str(path / f"{index_name}.faiss"))
+
+        # save docstore and index_to_docstore_id
+        with open(path / f"{index_name}.pkl", "wb") as f:
+            pickle.dump((self.docstore, self.index_to_docstore_id), f)
 
     def run_pipeline(self, resource: str):
         docs = IndexingStageRAG.__load_resource(resource)
@@ -341,5 +348,5 @@ def main():
 
 if __name__ == '__main__':
     indexing_stage_rag.run_pipeline("./docs/agent/Catalogo_Productos_Servicios_ZEIT_2026.docx")
-    #indexing_stage_rag.save_local("temp_store")
+    indexing_stage_rag.save_local("/faiss/catalogo", )
     main()
