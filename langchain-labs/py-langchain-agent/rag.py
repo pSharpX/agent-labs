@@ -96,8 +96,8 @@ class IndexingStageRAG:
         ])
         return embeddings
 
-    def save_local(self, index_name: str):
-        self.vector_store.save_local(folder_path="faiss", index_name=index_name)
+    def save_local(self, index_name: str, folder_path = "faiss"):
+        self.vector_store.save_local(folder_path=folder_path, index_name=index_name)
 
     def process(self, resource: str):
         docs = IndexingStageRAG.__load(resource)
