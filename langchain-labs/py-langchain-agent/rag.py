@@ -111,10 +111,23 @@ class IndexingStageRAG:
 
 
 class RetrievalStageRAG:
-    def __init__(self, index_name: str, folder_path: str = "faiss"):
+    def __init__(self, index, docstore, index_to_docstore_id, top_k: int = 3):
         # Embeddings
         # model="text-embedding-3-small", "text-embedding-3-large"
         self.embeddings_model = OpenAIEmbeddings()
+        # Create an empty FAISS index
+        self.faiss_index = index
+        # Init vector store
+        self.vector_store = FAISS(
+            embedding_function=self.embeddings_model,
+            index=self.faiss_index,
+            index_to_docstore_id=index_to_docstore_id,
+            docstore=docstore
+        )
+        self.retriever = self.vector_store.as_retriever(search_kwargs={"k": top_k})
+
+    @classmethod
+    def from_local(cls, index_name: str, folder_path: str = "faiss"):
         path = Path(folder_path)
         index = faiss.read_index(str(path / f"{index_name}.faiss"))
         # load docstore and index_to_docstore_id
@@ -124,28 +137,21 @@ class RetrievalStageRAG:
                 index_to_docstore_id,
             ) = pickle.load(f)
 
-        # Init vector store
-        self.vector_store = FAISS(
-            embedding_function=self.embeddings_model,
-            index=index,
-            index_to_docstore_id=index_to_docstore_id,
-            docstore=docstore
-        )
-        self.retriever = self.vector_store.as_retriever(search_kwargs={"k": 3})
+        return cls(index, docstore, index_to_docstore_id)
 
     def retrieve(self, query: str) -> list[Document]:
         return self.retriever.invoke(input=query)
 
 
+index_name = "catalogo"
 #indexing_stage_rag = IndexingStageRAG()
-retrieval_stage_rag = RetrievalStageRAG("temp_store")
 
 def display_results(results: list[Document]):
     for index, doc in enumerate(results):
         print(f"{index}. {doc.page_content}")
 
-
-def main():
+def start_retrieval():
+    retrieval_stage_rag = RetrievalStageRAG.from_local(index_name)
     print("Welcome to RAG!")
     print("Start searching text (type 'c' for exit) >> ")
     while True:
@@ -160,7 +166,8 @@ def main():
 
 if __name__ == '__main__':
     #indexing_stage_rag.process("./docs/agent/Catalogo_Productos_Servicios_ZEIT_2026.docx")
-    #indexing_stage_rag.save_local("temp_store")
-    main()
+    #indexing_stage_rag.process("./docs/agent/ZEIT_Implementación_de_Plataforma_de_Envio_de_Correo_Masivo.docx")
+    #indexing_stage_rag.save_local(index_name)
+    start_retrieval()
 
 
