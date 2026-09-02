@@ -5,16 +5,15 @@ CHANGELOG_DIR=$(PWD)/db/changelog
 GENERATED_DIR=$(PWD)/db/changelog
 
 DB_JDBC_URL=jdbc:postgresql://host.docker.internal:5432/vectordb
+COMPOSE_PROFILES=crawl4ai
 
 test:
 	pytest
 
-clean:
-	pip freeze | xargs pip uninstall -y
-refresh:
-	pip freeze | xargs pip uninstall -y && pip install -r requirements.txt
+sync:
+	uv sync --all-groups
 install:
-	pip install -r requirements.txt
+	uv pip install -r pyproject.toml
 
 initialize:
 	docker compose up
@@ -84,10 +83,10 @@ migrate:
 		update
 
 run:
-	python agents.py
+	uv run agents.py
 
 run_rag:
-	python rag.py
+	uv run rag.py
 
 run_raptor:
-	python rag_raptor.py
+	uv run  rag_raptor.py
