@@ -1,26 +1,11 @@
 import requests
-import serpapi
-import os
 
 from pathlib import Path
 from urllib.parse import urlparse
 
 from langchain.tools import tool
-from langchain_community.utilities import ArxivAPIWrapper
 
 from settings import BaseToolSettings
-
-#client = serpapi.Client(api_key=os.environ["SERPAPI_API_KEY"])
-
-arxiv = ArxivAPIWrapper()
-
-
-class WebScrapper:
-    def __init__(self, api_url: str, api_key: str):
-        pass
-
-    def retrieve(self):
-        pass
 
 
 class WeatherClient:
@@ -34,11 +19,6 @@ class WeatherClient:
             return response.json()
         return None
 
-#def search_serpapi(query: str, k: int=3) -> list[str]:
-#    """Search the web for information about a topic."""
-#    res = client.search(q=query, engine="google", hl="en", gl="us")
-#    results = res["organic_results"] if len(res["organic_results"]) <= k else res["organic_results"][:k]
-#    return [ item["link"] for item in results]
 
 def search_wikipedia(query: str) -> str:
     """Search Wikipedia for information about a topic."""
@@ -68,14 +48,6 @@ def search_wikipedia(query: str) -> str:
         for result in results
     )
 
-@tool
-def get_papers(query: str) -> str:
-    """Search on ArXiv for deep research and investigation.
-
-    Args:
-        query: term to search for
-    """
-    return arxiv.run(query)
 
 @tool
 def add(a: int | float, b: int | float) -> int | float:
