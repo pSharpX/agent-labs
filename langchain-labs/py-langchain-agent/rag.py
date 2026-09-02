@@ -36,7 +36,7 @@ def call_pdf_loader(resource: str) -> list[Document]:
     if pdf_loader is PDFLoader.FIRECRAWL_ANYDOC:
         return call_anydoc(resource, "pdf")
     elif pdf_loader is PDFLoader.DOC7:
-        raise ValueError("Provider not implemented")
+        raise NotImplementedError("Provider not implemented")
     loader = PyPDFLoader(resource)
     return loader.load()
 
