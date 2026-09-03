@@ -15,6 +15,7 @@ from langgraph.runtime import Runtime
 from langgraph.types import Command
 from pydantic import BaseModel
 
+from middlewares import ToolMonitoringMiddleware
 from prompts import AGENDA_HANDLER_SYSTEM_PROMPT, WEATHER_ASSISTANT_SYSTEM_PROMPT, CINE_FINDER_SYSTEM_PROMPT
 from settings import BaseModelSettings, BaseToolSettings, DatabaseSettings
 from config import langfuse_handler
@@ -299,7 +300,9 @@ class CineFinderAgent:
                 GetFilmReviewTool(),
             ],
             system_prompt=self.system_prompt,
-            middleware=[],
+            middleware=[
+                ToolMonitoringMiddleware()
+            ],
             name="cine-finder-agent",
             state_schema=CineFinderState,
             checkpointer=InMemorySaver()
