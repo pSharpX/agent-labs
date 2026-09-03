@@ -1,5 +1,5 @@
 import asyncio
-from typing import Literal
+from typing import Literal, TypedDict, Protocol
 
 import requests
 
@@ -16,7 +16,11 @@ from settings import BaseToolSettings
 
 ContentFilter = Literal["llm", "bm25", "prune"]
 
-def get_content_filter(content_filter: ContentFilter | None, settings: dict):
+class LLMSettings(TypedDict):
+    provider: str
+    api_token: str
+
+def get_content_filter(content_filter: ContentFilter | None = None, settings: LLMSettings = None):
     if content_filter == "llm":
         if "provider" not in settings or "api_token" not in settings:
             raise TypeError("Invalid or missing argument: provider, api_token")
@@ -58,41 +62,77 @@ def get_content_filter(content_filter: ContentFilter | None, settings: dict):
         )
     return None
 
-class CrawlHelper:
-    def __init__(self, content_filter: ContentFilter = None, settings: dict = None):
-        self.__content_filter = get_content_filter(content_filter, settings)
-        self.__md_generator = DefaultMarkdownGenerator(
-            content_source="fit_html", # cleaned_html
-            content_filter=self.__content_filter,
-            options={
-                "ignore_links": True,
-                "escape_html": True,
-                "body_width": 80
-            }
-        )
+js_code = """
+(async () => {
+    const selector = ".movies-list--view-more-button";
+    const maxClicks = 20;
 
+    for (let i = 0; i < maxClicks; i++) {
+        const button = document.querySelector(selector);
+
+        if (!button) break;
+
+        const style = window.getComputedStyle(button);
+        const hidden =
+            style.display === "none" ||
+            style.visibility === "hidden" ||
+            button.offsetParent === null;
+
+        if (hidden) break;
+
+        // Capture current content size
+        const previousHeight = document.body.scrollHeight;
+
+        button.click();
+
+        // Wait for React/API response
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        // Wait for DOM to actually grow
+        let attempts = 0;
+
+        while (
+            document.body.scrollHeight <= previousHeight &&
+            attempts < 10
+        ) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+            attempts++;
+        }
+    }
+})();
+"""
+
+class Crawler(Protocol):
+    def run(self, url: str) -> str:
+        pass
+
+    async def arun(self, url: str) -> str:
+        pass
+
+class CrawlHelper:
+    def __init__(self, run_config: CrawlerRunConfig = None):
         self.__browser_config = BrowserConfig(headless=True, java_script_enabled=True)
-        self.__run_config = CrawlerRunConfig(
-            markdown_generator=self.__md_generator,
-            wait_for="css:.app",
-            delay_before_return_html=3.0,
-            process_iframes=True,
-            js_code="""
-                window.scrollTo(0, document.body.scrollHeight);
-            """,
-            scan_full_page=True
-        )
+        if run_config is None:
+            self.__md_generator = DefaultMarkdownGenerator(
+                content_source="fit_html", # cleaned_html
+                content_filter=get_content_filter(),
+                options={
+                    "ignore_links": True,
+                    "escape_html": True,
+                    "body_width": 80
+                }
+            )
+            self.__run_config = CrawlerRunConfig(
+                markdown_generator=self.__md_generator,
+            )
+        else:
+            self.__run_config = run_config
 
     def run(self, url: str) -> str:
         async def __run():
             async with AsyncWebCrawler(config=self.__browser_config) as crawler:
                 result = await crawler.arun(url, config=self.__run_config)
-                print("RESULTS HERE ***********")
-                print(result)
-                print("RESULTS HERE ***********")
                 if result.success:
-                    print("MARKDOWN HERE ***********")
-                    print(result.markdown)
                     return result.markdown
 
                 raise ValueError(f"Crawl failed: {result.error_message}")
@@ -107,6 +147,62 @@ class CrawlHelper:
 
             raise ValueError(f"Crawl failed: {result.error_message}")
 
+class CineplanetCrawlerHelper(CrawlHelper):
+    def __init__(self, content_filter: ContentFilter = None, settings: LLMSettings = None):
+        self.__md_generator = DefaultMarkdownGenerator(
+            content_source="fit_html",
+            content_filter=get_content_filter(content_filter, settings),
+            options={
+                "ignore_links": True,
+                "escape_html": True,
+                "body_width": 80
+            }
+        )
+
+        super().__init__(
+            run_config=CrawlerRunConfig(
+                markdown_generator=self.__md_generator,
+                wait_for="css:.app",
+                delay_before_return_html=3.0,
+                process_iframes=True,
+                js_code=js_code,
+                scan_full_page=True
+            )
+        )
+
+class CinemarkCrawlerHelper(CrawlHelper):
+    def __init__(self, content_filter: ContentFilter = None, settings: LLMSettings = None):
+        self.__md_generator = DefaultMarkdownGenerator(
+            content_source="fit_html",
+            content_filter=get_content_filter(content_filter, settings),
+            options={
+                "ignore_links": True,
+                "escape_html": True,
+                "body_width": 80
+            }
+        )
+
+        super().__init__(
+            run_config=CrawlerRunConfig(
+                markdown_generator=self.__md_generator,
+                delay_before_return_html=3.0,
+                process_iframes=True,
+                scan_full_page=True
+            )
+        )
+
+class CinemaCrawlerResolver:
+    def __init__(self):
+        self.__crawlers = {
+            "cineplanet": CineplanetCrawlerHelper(content_filter="bm25"),
+            "cinemark": CinemarkCrawlerHelper(content_filter="bm25"),
+        }
+
+    def resolve(self, crawler: Literal["cineplanet", "cinemark"]) -> Crawler:
+        if crawler not in self.__crawlers:
+            raise ValueError(f"Crawler not supported: {crawler}")
+
+        return self.__crawlers[crawler]
 
 
 class WeatherClient:
