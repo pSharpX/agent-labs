@@ -1,4 +1,11 @@
+import asyncio
+from typing import Literal
+
 import requests
+
+from crawl4ai.markdown_generation_strategy import DefaultMarkdownGenerator
+from crawl4ai import AsyncWebCrawler, CrawlerRunConfig, BrowserConfig, LLMContentFilter, LLMConfig, BM25ContentFilter, \
+    PruningContentFilter
 
 from pathlib import Path
 from urllib.parse import urlparse
@@ -6,6 +13,100 @@ from urllib.parse import urlparse
 from langchain.tools import tool
 
 from settings import BaseToolSettings
+
+ContentFilter = Literal["llm", "bm25", "prune"]
+
+def get_content_filter(content_filter: ContentFilter | None, settings: dict):
+    if content_filter == "llm":
+        if "provider" not in settings or "api_token" not in settings:
+            raise TypeError("Invalid or missing argument: provider, api_token")
+
+        return LLMContentFilter(
+            llm_config = LLMConfig(
+                provider=settings["provider"],
+                api_token=settings["api_token"]
+            ), #or use environment variable
+            instruction="""
+            Focus on extracting the core cinema and entertainment content.
+            Include:
+            - Movie and TV show information
+            - Actors, directors, and other key people
+            - Reviews, ratings, and recommendations
+            - Release dates, trailers, and upcoming releases
+            - Relevant entertainment news and announcements
+            Exclude:
+            - Navigation elements
+            - Advertisements
+            - Sidebars and unrelated recommendations
+            - Footer content
+            Format the output as clean markdown with proper code blocks and headers.
+            """,
+            chunk_token_threshold=4096,  # Adjust based on your needs
+            verbose=True
+        )
+    elif content_filter == "bm25":
+        return BM25ContentFilter(
+            user_query="extract main content",
+            bm25_threshold=1.2,
+            language="english"
+        )
+    elif content_filter == "prune":
+        return PruningContentFilter(
+            threshold=0.5,
+            threshold_type="fixed",  # or "dynamic"
+            min_word_threshold=50
+        )
+    return None
+
+class CrawlHelper:
+    def __init__(self, content_filter: ContentFilter = None, settings: dict = None):
+        self.__content_filter = get_content_filter(content_filter, settings)
+        self.__md_generator = DefaultMarkdownGenerator(
+            content_source="fit_html", # cleaned_html
+            content_filter=self.__content_filter,
+            options={
+                "ignore_links": True,
+                "escape_html": True,
+                "body_width": 80
+            }
+        )
+
+        self.__browser_config = BrowserConfig(headless=True, java_script_enabled=True)
+        self.__run_config = CrawlerRunConfig(
+            markdown_generator=self.__md_generator,
+            wait_for="css:.app",
+            delay_before_return_html=3.0,
+            process_iframes=True,
+            js_code="""
+                window.scrollTo(0, document.body.scrollHeight);
+            """,
+            scan_full_page=True
+        )
+
+    def run(self, url: str) -> str:
+        async def __run():
+            async with AsyncWebCrawler(config=self.__browser_config) as crawler:
+                result = await crawler.arun(url, config=self.__run_config)
+                print("RESULTS HERE ***********")
+                print(result)
+                print("RESULTS HERE ***********")
+                if result.success:
+                    print("MARKDOWN HERE ***********")
+                    print(result.markdown)
+                    return result.markdown
+
+                raise ValueError(f"Crawl failed: {result.error_message}")
+
+        return asyncio.run(__run())
+
+    async def arun(self, url: str) -> str:
+        async with AsyncWebCrawler(config=self.__browser_config) as crawler:
+            result = await crawler.arun(url, config=self.__run_config)
+            if result.success:
+                return result.markdown
+
+            raise ValueError(f"Crawl failed: {result.error_message}")
+
 
 
 class WeatherClient:

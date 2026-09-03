@@ -1,8 +1,8 @@
-version: "3.9"
 
 services:
   pgvector:
     image: pgvector/pgvector:pg16
+    profiles: [rag]
     container_name: pgvector
     restart: always
     environment:
@@ -21,6 +21,7 @@ services:
       start_period: 30s
 
   liquibase:
+    profiles: [rag]
     build:
       context: ./liquibase
     depends_on:
@@ -38,6 +39,7 @@ services:
       update
 
   chroma:
+    profiles: [doc_store]
     image: chromadb/chroma:latest
     container_name: chromadb
     ports:
@@ -48,6 +50,54 @@ services:
       - IS_PERSISTENT=TRUE
       - PERSISTIST_DIRECTORY=/data
     restart: unless-stopped
+
+  crawl4ai:
+    image: unclecode/crawl4ai:latest
+    profiles: [crawl4ai]
+    container_name: crawl4ai
+    ports:
+      - "11235:11235"
+    env_file:
+    # API keys (create from .llm.env.example); optional so a fresh clone runs.
+    - path: .llm.env
+      required: false
+    environment:
+      # Auth token passthrough from the host shell (overwrites .llm.env).
+      - CRAWL4AI_API_TOKEN=${CRAWL4AI_API_TOKEN:-}
+      # Uncomment to set default environment variables (will overwrite .llm.env)
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      # - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      # - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      # - GROQ_API_KEY=${GROQ_API_KEY:-}
+      # - TOGETHER_API_KEY=${TOGETHER_API_KEY:-}
+      # - MISTRAL_API_KEY=${MISTRAL_API_KEY:-}
+      # - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      # - LLM_PROVIDER=${LLM_PROVIDER:-}  # Optional: Override default provider (e.g., "anthropic/claude-3-opus")
+    # Chromium needs shared memory but the host /dev/shm bind was a shared,
+    # writable mount; use a private sized tmpfs instead.
+    shm_size: '1g'
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    # Read-only root filesystem; only these paths are writable (tmpfs).
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/lib/redis:uid=999,gid=999,mode=0700
+      - /var/lib/crawl4ai/outputs:uid=999,gid=999,mode=0700
+      - /home/appuser/.crawl4ai:uid=999,gid=999,mode=0700
+      # Keep the baked Playwright browser under ~/.cache/ms-playwright visible.
+      - /home/appuser/.cache/url_seeder:uid=999,gid=999,mode=0700
+      - /home/appuser/.gunicorn:uid=999,gid=999,mode=0700
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://crawl4ai:11235/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    user: "appuser"
 
 volumes:
   pgvector_data:

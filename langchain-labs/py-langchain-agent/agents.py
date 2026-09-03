@@ -21,6 +21,7 @@ from config import langfuse_handler
 from helpers import add, sub, mul, div, WeatherClient
 from src.contacts.domain.contact import Contact
 from src.contacts.services.contact_service import ContactService
+from tools import SearchCinemaInfoTool, GetCurrentDateTool, SearchFilmReviewTool, GetFilmReviewTool
 
 warnings.filterwarnings(
     "ignore",
@@ -33,7 +34,7 @@ tools_settings = BaseToolSettings()
 weather_client = WeatherClient(tools_settings)
 contact_service = ContactService()
 
-
+# Agenda Assistant Agent Models
 class AgendaState(AgentState):
     user_id: str
     display_name: str
@@ -47,6 +48,12 @@ class Input(TypedDict):
     user_id: str
     display_name: str
     question: str
+
+
+# Cine Finder Agent Models
+class CineFinderState(AgentState):
+    selected_cine: str
+    supported_cinemas: list
 
 
 @tool
@@ -272,6 +279,63 @@ class AgendaHandlerAgent:
             print(state["messages"][-1].content)
 
 
+class CineFinderAgent:
+    def __init__(self):
+        self.model_settings = BaseModelSettings()
+        self.db_settings = DatabaseSettings()
+        self.model = init_chat_model(
+            model=self.model_settings.model_name,
+            model_provider=self.model_settings.provider,
+            temperature=self.model_settings.temperature,
+        )
+        self.system_prompt = CINE_FINDER_SYSTEM_PROMPT
+        # noinspection bad-argument-type
+        self.agent = create_agent(
+            model=self.model,
+            tools=[
+                GetCurrentDateTool(),
+                SearchCinemaInfoTool(),
+                SearchFilmReviewTool(),
+                GetFilmReviewTool(),
+            ],
+            system_prompt=self.system_prompt,
+            middleware=[],
+            name="cine-finder-agent",
+            state_schema=CineFinderState,
+            checkpointer=InMemorySaver()
+        )
+
+    def start(self, input_obj: dict, session_id: str):
+        print("Welcome to Cine Finder Agent!")
+        print("Start typing ('c' for exit) >> ")
+        while True:
+            question = input()
+            if question == "c":
+                break
+            elif question.strip() == "":
+                continue
+            state = self.agent.invoke(
+                input={
+                    "selected_cine": input_obj["selected_cine"],
+                    "supported_cinemas": input_obj["supported_cinemas"],
+                    "messages": [HumanMessage(content=question)]
+                },
+                config={
+                    "callbacks": [langfuse_handler],
+                    "metadata": {
+                        "langfuse_user_id": input_obj["user_id"],
+                        "langfuse_session_id": session_id,
+                        "langfuse_tags": ["environment:dev", "framework:langchain", "application:py-langchain-agent", "component:cine-finder-agent"]
+                    },
+                    "configurable": {
+                        "thread_id": session_id
+                    }
+                },
+                context=input_obj,
+            )
+            print(state["messages"][-1].content)
+
+
 def load_default_user_info(user_id: str = "6d95e39d-d5b0-4584-91b1-d1fc1efff25b") -> dict:
     contact: Contact | None = contact_service.get_contact(user_id)
     if contact is None:
@@ -284,13 +348,20 @@ def load_default_user_info(user_id: str = "6d95e39d-d5b0-4584-91b1-d1fc1efff25b"
 
 
 #main_agent = WeatherWiseAgent()
-main_agent = AgendaHandlerAgent()
+#main_agent = AgendaHandlerAgent()
+main_agent = CineFinderAgent()
 
 if __name__ == '__main__':
-    contact_info = load_default_user_info()
     #main_agent.start(config=thread_config)
-    main_agent.start(input_obj= {
-        "user_id": contact_info["user_id"],
-        "display_name": contact_info["display_name"],
+
+    #contact_info = load_default_user_info()
+    #main_agent.start(input_obj= {
+    #    "user_id": contact_info["user_id"],
+    #    "display_name": contact_info["display_name"],
+    #}, session_id=str(uuid.uuid4()))
+
+    main_agent.start(input_obj={
+        "user_id": str(uuid.uuid4()),
+        "selected_cine": "cineplanet",
+        "supported_cinemas": ["cineplanet", "cinemark", "cinepolis"],
     }, session_id=str(uuid.uuid4()))
-    main_agent.on_destroy()
