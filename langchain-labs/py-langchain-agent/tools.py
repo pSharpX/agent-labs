@@ -4,11 +4,11 @@ from typing import Type, Any, Optional
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
-from helpers import CrawlHelper
+from helpers import CrawlHelper, CinemaCrawlerResolver
 
 supported_cinemas = {
     "cineplanet": lambda param = None: "https://www.cineplanet.com.pe/peliculas",
-    "cinemark": lambda param=datetime.now().strftime("YYYY-MM-DD"): f"https://www.cinemark-peru.com/elegir-pelicula?date={param}",
+    "cinemark": lambda param=datetime.now().strftime("%Y-%m-%d"): f"https://www.cinemark-peru.com/elegir-pelicula?date={param}",
 }
 
 def validate_cinema(cinema: str) -> None:
@@ -17,18 +17,19 @@ def validate_cinema(cinema: str) -> None:
 
 
 class GetCurrentDateInput(BaseModel):
-    date_format: str = Field(description="Python datetime format string. Defaults to YYYY-MM-DD.")
+    date_format: str = Field(description="Python datetime format string. Defaults to %Y-%m-%d.")
 
 class GetCurrentDateTool(BaseTool):
     name: str = "get_current_date"
     description: str = "Returns the current date formatted according to the requested format"
     args_schema: Type[BaseModel] = GetCurrentDateInput
 
-    def _run(self, date_format: str = "YYYY-MM-DD") -> str:
+    #
+    def _run(self, date_format: str = "%Y-%m-%d") -> str:
         """Synchronous execution logic."""
         return datetime.now().strftime(date_format)
 
-    async def _arun(self, date_format: str = "YYYY-MM-DD") -> str:
+    async def _arun(self, date_format: str = "%Y-%m-%d") -> str:
         """Asynchronous execution logic (optional)."""
         return datetime.now().strftime(date_format)
 
@@ -37,7 +38,7 @@ class SearchCinemaInfoInput(BaseModel):
     cinema: str = Field(description="Name of the cinema whose website should be crawled to retrieve movies, showtimes, locations, prices, and other relevant cinema information.")
     date: Optional[str] = Field(
         default=None,
-        description="Optional date to search for cinema information, especially movie availability and showtimes. Format: YYYY-MM-DD (e.g., 2026-09-02)."
+        description="Optional date to search for cinema information, especially movie availability and showtimes. Format: %Y-%m-%d (e.g., 2026-09-02)."
     )
 
 class SearchCinemaInfoTool(BaseTool):
@@ -55,21 +56,21 @@ class SearchCinemaInfoTool(BaseTool):
 
     def __init__(self, **kwargs: Any):
         super().__init__(**kwargs)
-        self.__crawler = CrawlHelper(content_filter="bm25")
+        self.__crawler = CinemaCrawlerResolver()
 
     def _run(self, cinema: str, date: str) -> str:
         """Synchronous execution logic."""
         validate_cinema(cinema)
 
         url = supported_cinemas[cinema](date)
-        return self.__crawler.run(url)
+        return self.__crawler.resolve(cinema).run(url)
 
     async def _arun(self, cinema: str, date: str) -> str:
         """Asynchronous execution logic (optional)."""
         validate_cinema(cinema)
 
         url = supported_cinemas[cinema](date)
-        return self.__crawler.arun(url)
+        return self.__crawler.resolve(cinema).arun(url)
 
 
 class SearchFilmReviewInput(BaseModel):
